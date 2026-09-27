@@ -32,6 +32,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Form1.Designer.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Remove="Form1.resx" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="favicon.ico" />
   </ItemGroup>
 
