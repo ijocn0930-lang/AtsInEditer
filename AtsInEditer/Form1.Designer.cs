@@ -405,7 +405,7 @@
             MainMenuStrip = menuStrip1;
             MaximizeBox = false;
             Name = "Form1";
-            Text = "ATSプラグインエディタ V0.0.1";
+            Text = "ATSプラグインエディタ V0.0.2";
             FormClosing += Form1_FormClosing;
             Load += Form1_Load;
             KeyDown += Form1_KeyDown;

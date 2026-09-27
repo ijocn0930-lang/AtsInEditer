@@ -54,14 +54,14 @@ namespace AtsInEditer
             if (isEnglish)
             {
                 // 英語に切り替え
-                label1.Text = "ATS Plugin INI Editor Version v0.0.1";
+                label1.Text = "ATS Plugin INI Editor Version v0.0.2";
                 label2.Text = "Created by Tetsudo";
                 button1.Text = "Close";
             }
             else
             {
                 // 日本語に切り替え
-                label1.Text = "ATSプラグイン設定　バージョン v0.0.1";
+                label1.Text = "ATSプラグイン設定　バージョン v0.0.2";
                 label2.Text = "作成者　テツドウ";
                 button1.Text = "閉じる";
             }
