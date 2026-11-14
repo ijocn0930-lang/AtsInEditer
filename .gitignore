@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/AtsInEditer/ATS_ini_params.backup.csv
+/CLAUDE.md
+/Plan.md
+/RELEASE.md
+/AtsInEditer/ATS
