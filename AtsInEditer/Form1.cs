@@ -89,6 +89,81 @@ namespace AtsInEditer
 
             // Shift-JIS (CP932) を使うためのコードページ登録
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+            // ★ 今の画面を「基本設定」タブに入れ、「その他の設定」タブを追加する
+            SetupTabs();
+
+            // ★ ファイルメニューに「名前を付けて保存」を追加する
+            SetupSaveAsMenu();
+
+            // ★ 号線の番号の横に路線名を出す
+            SetupLineNameLabels();
+
+            // ★ 起動したときの値を、一覧表(CSV)の既定値にそろえる
+            //   (これをしないと ATCタイプ が空のままになり、ファイルを開かずに
+            //    新規作成・名前を付けて保存をすると AtcType が書かれなかった)
+            ResetAllToDefaults();
+            isModified = false;
+        }
+
+        // ★ 「名前を付けて保存」メニュー(画面の設計ファイルは触らず、ここで作る)
+        private ToolStripMenuItem 名前を付けて保存ToolStripMenuItem = new ToolStripMenuItem();
+
+        private void SetupSaveAsMenu()
+        {
+            名前を付けて保存ToolStripMenuItem.ShortcutKeyDisplayString = "Ctrl+Shift+S";
+            名前を付けて保存ToolStripMenuItem.Click += 名前を付けて保存_Click;
+            // 「上書き保存」のすぐ下に入れる
+            int index = ファイルToolStripMenuItem.DropDownItems.IndexOf(保存ToolStripMenuItem);
+            ファイルToolStripMenuItem.DropDownItems.Insert(index + 1, 名前を付けて保存ToolStripMenuItem);
+        }
+
+        // ★ タブ(基本設定 / その他の設定)
+        private TabControl tabMain = new TabControl();
+        private TabPage tabBasic = new TabPage();
+        private TabPage tabOther = new TabPage();
+
+        /// <summary>
+        /// 画面上の部品(メニュー以外)を「基本設定」タブへ移し、空の「その他の設定」タブを作ります。
+        /// 部品の見た目と位置は今のままです。
+        /// </summary>
+        private void SetupTabs()
+        {
+            int menuHeight = menuStrip1.Height;
+
+            // メニュー以外の部品を集める
+            var moveList = new List<Control>();
+            foreach (Control c in this.Controls)
+            {
+                if (c != menuStrip1) moveList.Add(c);
+            }
+
+            // 「基本設定」タブへ移す(メニューの高さ分だけ上にずらす)
+            foreach (Control c in moveList)
+            {
+                this.Controls.Remove(c);
+                c.Top -= menuHeight;
+                tabBasic.Controls.Add(c);
+            }
+
+            // 「その他の設定」タブ。中身は一覧表(CSV)から自動で作る。入りきらないときはスクロール
+            // (スクロールは、タブの中の「表を入れる枠」で行う。上のボタン列はスクロールしない)
+            tabOther.AutoScroll = false;
+            BuildOtherTab();
+
+            // マウスホイールで「その他の設定」タブをスクロールできるようにする(画面を閉じたら解除)
+            Application.AddMessageFilter(this);
+            this.FormClosed += (s, e) => Application.RemoveMessageFilter(this);
+
+            tabMain.TabPages.Add(tabBasic);
+            tabMain.TabPages.Add(tabOther);
+            tabMain.Dock = DockStyle.Fill;
+
+            // タブの見出し分だけ画面を縦に広げる
+            this.ClientSize = new Size(this.ClientSize.Width, this.ClientSize.Height + LogicalToDeviceUnits(40));
+
+            this.Controls.Add(tabMain);
+            tabMain.BringToFront(); // メニューの下に配置されるようにする
         }
 
         // --- 1. INIファイルを選択するボタン ---
@@ -134,7 +209,19 @@ namespace AtsInEditer
 
         private void txtFilePath_TextChanged(object sender, EventArgs e)
         {
+            // 開いているファイルが変わったら、タイトルバーのファイル名も変える
+            UpdateTitle();
 
+        }
+
+        /// <summary>
+        /// INIから整数を読みます。書かれていない・数字でないときは defaultValue。
+        /// (前の Windows 標準機能と同じく、「8 ; コメント」なら 8 と読みます)
+        /// </summary>
+        private static int GetIniInt(IniFile ini, string section, string key, int defaultValue)
+        {
+            string? s = ini.Get(section, key);
+            return int.TryParse(s?.Trim(), out int v) ? v : defaultValue;
         }
 
         // --- 2. INIファイルからデータを読み込む処理 ---
@@ -148,24 +235,23 @@ namespace AtsInEditer
             ActionLogger.Log($"INIファイルを読み込み開始: {iniPath}");
             if (string.IsNullOrEmpty(iniPath)) return;
 
-            // --- セクション存在チェック ---
-            // もし [VehicleSpec] セクションが存在しなければ、デフォルト値として渡した "__NOT_FOUND__" がそのまま返ってきます
-            string checkSection = ReadIni("VehicleSpec", "MaxBrake", "__NOT_FOUND__");
-            string checkSection2 = ReadIni("VehicleSpec", "AtcType", "__NOT_FOUND__");
+            // ★ INIを1行ずつ読み込む(行末の「; コメント」は値に含めない。文字コードも自動判別)
+            IniFile ini = IniFile.Load(iniPath);
 
-            // もし [LineSpec] セクションが存在しなければ、デフォルト値として渡した "__NOT_FOUND__" がそのまま返ってきます
-            string checkSection3 = ReadIni("LineSpec", "DefaultLine", "__NOT_FOUND__");
+            // --- セクション存在チェック ---
+            // [VehicleSpec] の MaxBrake が書かれていなければ "__NOT_FOUND__" になります
+            string checkSection = ini.Get("VehicleSpec", "MaxBrake") ?? "__NOT_FOUND__";
             // MinLineとMaxLineが記述されていない場合はデフォルトの値を使用するため、ここでは__NOT_FOUND__をチェックしない。
 
-            // --- [LineSpec] セクションの読み込み (デフォルト値は Osaka Metro 仕様の 1, 1, 8) ---
-            int defaultLine = (int)GetPrivateProfileIntA("LineSpec", "DefaultLine", 1, iniPath);
-            int minLine = (int)GetPrivateProfileIntA("LineSpec", "MinLine", 1, iniPath);
-            int maxLine = (int)GetPrivateProfileIntA("LineSpec", "MaxLine", 8, iniPath);
+            // --- [LineSpec] セクションの読み込み (既定値は一覧表(CSV)と同じ 1, 1, 9) ---
+            int defaultLine = GetIniInt(ini, "LineSpec", "DefaultLine", 1);
+            int minLine = GetIniInt(ini, "LineSpec", "MinLine", 1);
+            int maxLine = GetIniInt(ini, "LineSpec", "MaxLine", 9);
 
-            // 範囲外（1〜8以外）の値がINIに入っていた場合のガード
-            numDefaultLine.Value = Math.Max(1, Math.Min(8, defaultLine));
-            numMinLine.Value = Math.Max(1, Math.Min(8, minLine));
-            numMaxLine.Value = Math.Max(1, Math.Min(8, maxLine));
+            // 範囲外（1〜9以外）の値がINIに入っていた場合のガード
+            numDefaultLine.Value = Math.Max(1, Math.Min(9, defaultLine));
+            numMinLine.Value = Math.Max(1, Math.Min(9, minLine));
+            numMaxLine.Value = Math.Max(1, Math.Min(9, maxLine));
 
             ActionLogger.Log($"[LineSpec] 読み込み完了: Default={defaultLine}, Min={minLine}, Max={maxLine}");
 
@@ -182,8 +268,8 @@ namespace AtsInEditer
                 );
 
                 // 画面の数値をリセットまたはパス表示をクリア（お好みで調整してください）
-                txtFilePath.Text = "";
                 iniPath = "";
+                txtFilePath.Text = ""; // (iniPath を先に空にしてから。タイトルバーの表示を正しくするため)
                 return; // ここで読み込み処理を打ち切る
             }
 
@@ -192,7 +278,7 @@ namespace AtsInEditer
             int minMaxBrake = (int)numMaxBrake.Minimum;
             int maxMaxBrake = (int)numMaxBrake.Maximum;
 
-            string maxBrakeStr = ReadIni("VehicleSpec", "MaxBrake", "");
+            string maxBrakeStr = ini.Get("VehicleSpec", "MaxBrake") ?? "";
 
             // 数値変換チェック (intに変換できるか ＆ 範囲内か)
             if (int.TryParse(maxBrakeStr, out int maxBrakeVal))
@@ -222,7 +308,7 @@ namespace AtsInEditer
 
             // --- 3. AtcType の読み込みと数値範囲チェック ---
             // 許容範囲: 0 ～ 2
-            string atcTypeStr = ReadIni("VehicleSpec", "AtcType", "");
+            string atcTypeStr = ini.Get("VehicleSpec", "AtcType") ?? "";
 
             if (int.TryParse(atcTypeStr, out int atcTypeVal))
             {
@@ -250,16 +336,14 @@ namespace AtsInEditer
             }
             // --- [ATC] セクションの読み込み ---
             // 1. ATCFail の読み込み (既定は "false")
-            StringBuilder sbAtcFail = new StringBuilder(255);
-            GetPrivateProfileStringA("ATC", "ATCFail", "false", sbAtcFail, (uint)sbAtcFail.Capacity, iniPath);
-            bool atcFail = bool.TryParse(sbAtcFail.ToString().Trim(), out bool parsedBool) && parsedBool;
+            string atcFailStr = (ini.Get("ATC", "ATCFail") ?? "false").Trim();
+            bool atcFail = atcFailStr == "1" || (bool.TryParse(atcFailStr, out bool parsedBool) && parsedBool);
 
             // 2. FailParameter の読み込み (既定は "0")
-            StringBuilder sbFailParam = new StringBuilder(255);
-            GetPrivateProfileStringA("ATC", "FailParameter", "0", sbFailParam, (uint)sbFailParam.Capacity, iniPath);
+            string failParamStr = ini.Get("ATC", "FailParameter") ?? "0";
 
             decimal failParam = 0m;
-            if (decimal.TryParse(sbFailParam.ToString().Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal parsedDecimal))
+            if (decimal.TryParse(failParamStr.Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal parsedDecimal))
             {
                 failParam = NormalizeFailParameter(parsedDecimal);
             }
@@ -272,6 +356,10 @@ namespace AtsInEditer
             chkAtcFail_CheckedChanged(chkAtcFail, EventArgs.Empty);
 
             ActionLogger.Log($"[ATC] 読み込み完了: ATCFail={atcFail}, FailParameter={failParam}");
+
+            // ★ 「その他の設定」タブの値を読み込む
+            LoadOtherFields();
+
             isModified = false;
             MessageBox.Show("設定を読み込みました。", "完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -308,28 +396,93 @@ namespace AtsInEditer
         }
 
         // 変更フラグ（未保存の変更があるか）
-        private bool isModified = false;
+        // ★ 値を変えたり保存したりするたびに、タイトルバーの「*」も自動で付け外しする
+        private bool isModifiedValue = false;
+        private bool isModified
+        {
+            get => isModifiedValue;
+            set
+            {
+                isModifiedValue = value;
+                UpdateTitle();
+            }
+        }
+
+        // タイトルバーのアプリ名(言語で変わる)
+        private string appTitle = "";
+
+        /// <summary>
+        /// タイトルバーを「アプリ名 - *ファイル名」の形にします。
+        /// ・* は保存していない変更があるときだけ付く
+        /// ・ファイルを開いていないときは「無題」(英語: Untitled)
+        /// </summary>
+        private void UpdateTitle()
+        {
+            if (appTitle == "") return; // 言語の設定前(起動の途中)は何もしない
+            string fileName = string.IsNullOrEmpty(iniPath)
+                ? (isEnglish ? "Untitled" : "無題")
+                : Path.GetFileName(iniPath);
+            this.Text = $"{appTitle} - {(isModifiedValue ? "*" : "")}{fileName}";
+        }
 
         // 設定値が変更されたときに呼ぶメソッド
         private void MarkAsModified()
         {
-            // ファイルが開かれている状態でのみ変更フラグを立てる
-            if (!string.IsNullOrEmpty(iniPath))
-            {
-                isModified = true;
-            }
+            // ★ ファイルを開いていなくても(起動直後でも)変更フラグを立てる。
+            //   (前は「ファイルを開いているときだけ」だったので、起動直後に値を変えて閉じても
+            //    「変更内容が保存されていません」が出なかった)
+            //   起動時・読み込み時・新規作成時などに、プログラムが値を入れたあとは isModified = false に戻している
+            isModified = true;
         }
 
 
         private void cmbAtcType_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (updatingAtcTypeItems) return; // 言語切り替えで名前を入れ替えているときは「変更」にしない
             ActionLogger.Log($"AtcType の値を変更: {cmbAtcType.SelectedIndex}");
             MarkAsModified();
         }
 
+        // ATCタイプの選択肢の名前を入れ替えている最中か
+        private bool updatingAtcTypeItems = false;
+
+        /// <summary>
+        /// ATCタイプの選択肢を「番号: 名前」で表示します(言語に合わせて入れ替え)。
+        /// 選んでいる位置(0/1/2)はそのままなので、保存される値は今までと同じです。
+        /// </summary>
+        private void UpdateAtcTypeItems()
+        {
+            string[] names = isEnglish
+                ? new[] { "0: WS-ATC only", "1: CS-ATC only", "2: Both" }
+                : new[] { "0: WS-ATCのみ", "1: CS-ATCのみ", "2: 両方" };
+
+            updatingAtcTypeItems = true;
+            try
+            {
+                int index = cmbAtcType.SelectedIndex;
+                cmbAtcType.Items.Clear();
+                cmbAtcType.Items.AddRange(names);
+                cmbAtcType.SelectedIndex = index; // 選んでいた位置に戻す(-1 なら未選択のまま)
+            }
+            finally
+            {
+                updatingAtcTypeItems = false;
+            }
+        }
+
         private void Form1_Load(object sender, EventArgs e)
         {
+            // ★ 前回選んだ言語に戻す(覚えていなければ日本語)
+            isEnglish = AppSettings.LoadIsEnglish() ?? false;
             UpdateLanguage(); // 言語設定を初期化
+
+            // ★ ウィンドウの大きさを変えられるようにする
+            //   (画面の並べ方が決まったあとでないと、右端からの距離が正しく取れないので、ここで行う)
+            SetupResizable();
+
+            // ★ 前回閉じたときのウィンドウの位置と大きさに戻す(閉じるときに覚える)
+            RestoreWindowBounds();
+            this.FormClosed += (s, e2) => SaveWindowBounds();
         }
 
         private void label2_Click(object sender, EventArgs e)
@@ -370,8 +523,14 @@ namespace AtsInEditer
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
             ActionLogger.Log($"キー入力検知: Ctrl={e.Control}, KeyCode={e.KeyCode}");
-            // Ctrl + S : 保存
-            if (e.Control && e.KeyCode == Keys.S)
+            // Ctrl + Shift + S : 名前を付けて保存(Ctrl + S より先に調べる)
+            if (e.Control && e.Shift && e.KeyCode == Keys.S)
+            {
+                名前を付けて保存ToolStripMenuItem.PerformClick();
+                e.SuppressKeyPress = true;
+            }
+            // Ctrl + S : 上書き保存
+            else if (e.Control && e.KeyCode == Keys.S)
             {
                 保存ToolStripMenuItem.PerformClick(); // メニュー項目を直接呼び出す
                 e.SuppressKeyPress = true;
@@ -393,7 +552,9 @@ namespace AtsInEditer
         private void 開くToolStripMenuItem_Click(object sender, EventArgs e)
         {
             ActionLogger.Log("ファイルを開くをクリック");
-            btnSelectFile.PerformClick(); // 既存のファイル選択ボタンの処理を呼び出す
+            // 既存のファイル選択ボタンの処理を直接呼び出す
+            // (PerformClick だと、ボタンが見えないタブを表示中のときに何も起きないため)
+            button1_Click(sender, e);
         }
 
         private void 新規作成ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -415,93 +576,78 @@ namespace AtsInEditer
                 sfd.DefaultExt = "ini";
                 sfd.FileName = "Detail.ini"; // デフォルトのファイル名（適宜変更してください）
 
-                if (sfd.ShowDialog() == DialogResult.OK)
+                if (sfd.ShowDialog() != DialogResult.OK)
                 {
+                    return;
+                }
+
+                // ★ 今の画面に未保存の変更があれば、消えてよいか確認する
+                if (isModified)
+                {
+                    string confirmMsg = isEnglish
+                        ? "Unsaved changes will be lost because all values are reset to defaults. Continue?"
+                        : "保存していない変更があります。新規作成するとすべての値が既定値に戻り、変更は失われます。続けますか？";
+                    if (MessageBox.Show(confirmMsg, isEnglish ? "Confirm" : "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
+                    {
+                        return;
+                    }
+                }
+
+                try
+                {
+                    // 前に開いていたファイルのロックを外す(同じファイルを選んだときに書き込めるように)
+                    UnlockFile();
+
+                    // ★ 両方のタブを一覧表(CSV)の既定値に戻す
+                    ResetAllToDefaults();
+
+                    // ★ 新しいINIを作り、全項目を書き込む
+                    IniFile ini = IniFile.CreateNew(sfd.FileName);
+
+                    // [VehicleSpec]
+                    ini.Set("VehicleSpec", "MaxBrake", numMaxBrake.Value.ToString());
+                    if (cmbAtcType.SelectedIndex >= 0)
+                    {
+                        ini.Set("VehicleSpec", "AtcType", cmbAtcType.SelectedIndex.ToString());
+                    }
+                    else if (FindDefault("VehicleSpec", "AtcType") is string atcDefault)
+                    {
+                        // 念のため: ATCタイプが選ばれていないときは一覧表の既定値を書く
+                        ini.Set("VehicleSpec", "AtcType", atcDefault);
+                    }
+                    // [LineSpec]
+                    ini.Set("LineSpec", "MinLine", numMinLine.Value.ToString());
+                    ini.Set("LineSpec", "MaxLine", numMaxLine.Value.ToString());
+                    ini.Set("LineSpec", "DefaultLine", numDefaultLine.Value.ToString());
+                    // [ATC] 数値を最終確認（1.0超は1.0、0.0000001未満は0）。浮動小数は不変カルチャで出力
+                    decimal finalFailParam = NormalizeFailParameter(numFailParameter.Value);
+                    numFailParameter.Value = finalFailParam;
+                    ini.Set("ATC", "ATCFail", chkAtcFail.Checked ? "true" : "false");
+                    ini.Set("ATC", "FailParameter", finalFailParam.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+                    // 「その他の設定」の全項目
+                    WriteAllOtherFields(ini);
+
+                    ini.Save();
+
+                    // 新しいファイルを「開いている状態」にする
                     iniPath = sfd.FileName;
                     txtFilePath.Text = iniPath;
+                    LockFile(iniPath);
+                    isModified = false;
+                    ActionLogger.Log($"INIファイルを新規作成しました: {iniPath}");
 
-                    if (numMaxBrake.Value == 0)
-                    {
-                        string warningMessage = isEnglish
-                            ? "MaxBrake is set to 0. Saving may cause ATS brakes to not function correctly. Do you want to continue?"
-                            : "MaxBrakeが0に設定されています。保存するとATSブレーキが正しく動作しない可能性があります。続けますか？";
-                        string warningTitle = isEnglish ? "Warning" : "警告";
-                        DialogResult result = MessageBox.Show(warningMessage, warningTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-
-                        if (result == DialogResult.No)
-                        {
-                            return;
-                        }
-
-                        // --- 1. バリデーションチェック ---
-                        // MinLine が MaxLine を超えている場合のエラー
-                        if (numMinLine.Value > numMaxLine.Value)
-                        {
-                            string msg = isEnglish
-                                ? "MinLine cannot be greater than MaxLine."
-                                : "最小号線 (MinLine) は最大号線 (MaxLine) 以下の値にしてください。";
-                            MessageBox.Show(msg, isEnglish ? "Input Error" : "入力エラー", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-
-                        // DefaultLine が範囲外の場合のエラー
-                        if (numDefaultLine.Value < numMinLine.Value || numDefaultLine.Value > numMaxLine.Value)
-                        {
-                            string msg = isEnglish
-                                ? "DefaultLine must be between MinLine and MaxLine."
-                                : "初期号線 (DefaultLine) は 最小号線〜最大号線 の範囲内で設定してください。";
-                            MessageBox.Show(msg, isEnglish ? "Input Error" : "入力エラー", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-
-                        // 新規作成時の初期値をセット（必要に応じて数値を調整してください）
-                        numMaxBrake.Value = 8; // デフォルトのMaxBrake値
-                        cmbAtcType.SelectedIndex = 0; // デフォルトのAtcType (例: 0)
-
-                        // INIファイルに初期値を書き込む（ファイルがなければ自動作成されます）
-                        WriteIni("VehicleSpec", "MaxBrake", numMaxBrake.Value.ToString());
-                        WriteIni("VehicleSpec", "AtcType", cmbAtcType.SelectedIndex.ToString());
-
-                        // 保存するテキストの内容を構築
-                        // （※他のセクションやコメントを残す場合は既存ファイルを読み込んで置換、または構造を維持して書き出します）
-                        StringBuilder sb = new StringBuilder();
-                        sb.AppendLine("[VehicleSpec]");
-                        sb.AppendLine($"MaxBrake={numMaxBrake.Value}");
-                        if (cmbAtcType.SelectedIndex >= 0)
-                        {
-                            sb.AppendLine($"AtcType={cmbAtcType.SelectedIndex}");
-                        }
-                        sb.AppendLine();
-                        // ★ 新規追加 [LineSpec]
-                        sb.AppendLine("[LineSpec]");
-                        sb.AppendLine($"DefaultLine={numDefaultLine.Value}");
-                        sb.AppendLine($"MinLine={numMinLine.Value}");
-                        sb.AppendLine($"MaxLine={numMaxLine.Value}");
-                        sb.AppendLine();
-                        // ★ 新規追加 [ATC]
-                        // 数値を最終確認（1.0超は1.0、0.0000001未満は0）
-                        decimal finalFailParam = NormalizeFailParameter(numFailParameter.Value);
-                        numFailParameter.Value = finalFailParam;
-
-                        sb.AppendLine("[ATC]");
-                        sb.AppendLine($"ATCFail={(chkAtcFail.Checked ? "true" : "false")}");
-                        // 浮動小数の表記揺れを防ぐため不変カルチャで出力
-                        sb.AppendLine($"FailParameter={finalFailParam.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
-                        sb.AppendLine();
-
-                        // Shift-JIS (CP932) エンコーディングの取得
-                        Encoding sjisEnc = Encoding.GetEncoding("shift_jis");
-
-                        // Shift-JIS エンコーディングを指定してファイルへ一括書き込み
-                        File.WriteAllText(iniPath, sb.ToString(), sjisEnc);
-
-                        // 保存成功時の処理
-                        isModified = false;
-                        string successMessage = isEnglish
-                            ? "INI file has been created and saved in Shift-JIS format!"
-                            : "Shift-JIS形式でINIファイルへ保存しました！";
-                        MessageBox.Show(successMessage, "保存完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
+                    string successMessage = isEnglish
+                        ? "A new INI file has been created with default values."
+                        : "既定値で新しいINIファイルを作成しました。";
+                    MessageBox.Show(successMessage, isEnglish ? "Created" : "作成完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    ActionLogger.Log($"INIファイルの新規作成に失敗: {ex.Message}");
+                    MessageBox.Show(
+                        (isEnglish ? "Could not create the file:\n" : "ファイルを作成できませんでした:\n") + ex.Message,
+                        isEnglish ? "Error" : "エラー", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -511,50 +657,15 @@ namespace AtsInEditer
             ActionLogger.Log("上書き保存を開始");
             if (string.IsNullOrEmpty(iniPath) || !File.Exists(iniPath))
             {
-                String message = isEnglish
-                    ? "Please select an INI file first."
-                    : "先にINIファイルを選択してください。";
-                String errorTitle = isEnglish ? "Error" : "エラー";
-                MessageBox.Show(message, errorTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                // ★ まだファイルを開いていないときは「名前を付けて保存」にする
+                名前を付けて保存_Click(sender, e);
                 return;
             }
-            UnlockFile();
 
-            // 1. MaxBrake 0 チェック
-            if (numMaxBrake.Value == 0)
+            // 1. 保存前のチェック(範囲外・MaxBrake 0・号線)
+            if (!ValidateBeforeSave())
             {
-                string warningMessage = isEnglish
-                    ? "MaxBrake is set to 0. Saving may cause ATS brakes to not function correctly. Do you want to continue?"
-                    : "MaxBrakeが0に設定されています。保存するとATSブレーキが正しく動作しない可能性があります。続けますか？";
-                string warningTitle = isEnglish ? "Warning" : "警告";
-                DialogResult result = MessageBox.Show(warningMessage, warningTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-
-                if (result == DialogResult.No)
-                {
-                    return;
-                }
-            }
-            {
-                // --- 1. バリデーションチェック ---
-                // MinLine が MaxLine を超えている場合のエラー
-                if (numMinLine.Value > numMaxLine.Value)
-                {
-                    string msg = isEnglish
-                        ? "MinLine cannot be greater than MaxLine."
-                        : "最小号線 (MinLine) は最大号線 (MaxLine) 以下の値にしてください。";
-                    MessageBox.Show(msg, isEnglish ? "Input Error" : "入力エラー", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                // DefaultLine が範囲外の場合のエラー
-                if (numDefaultLine.Value < numMinLine.Value || numDefaultLine.Value > numMaxLine.Value)
-                {
-                    string msg = isEnglish
-                        ? "DefaultLine must be between MinLine and MaxLine."
-                        : "初期号線 (DefaultLine) は 最小号線〜最大号線 の範囲内で設定してください。";
-                    MessageBox.Show(msg, isEnglish ? "Input Error" : "入力エラー", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+                return;
             }
 
             // 2. 読み取り専用属性のチェック
@@ -567,7 +678,7 @@ namespace AtsInEditer
                         ? "The specified file cannot be saved.\nAccess is denied."
                         : "指定されたファイルを保存できません。\nアクセスが拒否されました";
                     string errorTitle = isEnglish ? "Save Error" : "保存エラー";
-                    DialogResult result = MessageBox.Show(errorMessage, errorTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(errorMessage, errorTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return; // 処理を中断
                 }
             }
@@ -582,60 +693,18 @@ namespace AtsInEditer
                 return;
             }
 
-            // 3. 実際の書き込みとアクセス権限（書き込み権限）のチェック
-            {
-                // WriteIni (WritePrivateProfileString) の書き込み実行
-                bool res1 = WriteIni("VehicleSpec", "MaxBrake", numMaxBrake.Value.ToString());
-                bool res2 = true;
-                if (cmbAtcType.SelectedIndex >= 0)
-                {
-                    res2 = WriteIni("VehicleSpec", "AtcType", cmbAtcType.SelectedIndex.ToString());
-                }
-
-                // APIの返り値が false の場合は書き込み失敗（権限不足やロック中など）
-                if (!res1 || !res2)
-                {
-                    MessageBox.Show(
-                        "ファイルへの書き込みに失敗しました。アクセスが拒否されました\nアクセス権限がないか、他のプログラムによってファイルがロックされている可能性があります。",
-                        "保存失敗",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
-                    return;
-                }
-            }
+            // 3. 実際の書き込み(書き込む直前にロックを外す)
+            UnlockFile();
             try
             {
-                // Shift-JIS (CP932) エンコーディングの取得
-                Encoding sjisEnc = Encoding.GetEncoding("shift_jis");
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine("[VehicleSpec]");
-                sb.AppendLine($"MaxBrake={numMaxBrake.Value}");
-                if (cmbAtcType.SelectedIndex >= 0)
-                {
-                    sb.AppendLine($"AtcType={cmbAtcType.SelectedIndex}");
-                }
-                sb.AppendLine();
-                // ★ 新規追加 [LineSpec]
-                sb.AppendLine("[LineSpec]");
-                sb.AppendLine($"DefaultLine={numDefaultLine.Value}");
-                sb.AppendLine($"MinLine={numMinLine.Value}");
-                sb.AppendLine($"MaxLine={numMaxLine.Value}");
-                sb.AppendLine();
+                // ★ ファイル全体を作り直すのではなく、INIを1行ずつ読み込んで「値」の部分だけを書き換える。
+                //   (他のセクション、コメント行、行末の「; コメント」はそのまま残る)
+                IniFile ini = IniFile.Load(iniPath);
+                WriteValuesToIni(ini);
 
-                // ★ 新規追加 [ATC]
-                // 数値を最終確認（1.0超は1.0、0.0000001未満は0）
-                decimal finalFailParam = NormalizeFailParameter(numFailParameter.Value);
-                numFailParameter.Value = finalFailParam;
+                // ファイルに書き戻す(読み込んだときと同じ文字コード)
+                ini.Save();
 
-                sb.AppendLine("[ATC]");
-                sb.AppendLine($"ATCFail={(chkAtcFail.Checked ? "true" : "false")}");
-                // 浮動小数の表記揺れを防ぐため不変カルチャで出力
-                sb.AppendLine($"FailParameter={finalFailParam.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
-                sb.AppendLine();
-
-                // ファイル書き込み
-                File.WriteAllText(iniPath, sb.ToString(), sjisEnc);
                 // 保存成功時の処理
                 isModified = false;
                 ActionLogger.Log($"INIファイルを保存しました: {iniPath}");
@@ -645,10 +714,10 @@ namespace AtsInEditer
                 MessageBox.Show(successMsg, isEnglish ? "Success" : "完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (UnauthorizedAccessException)
-
             {
                 // アクセス拒否（管理者権限が必要なフォルダへの書き込みなど）
                 ActionLogger.Log($"INIファイルの保存に失敗（アクセス拒否）: {iniPath}");
+                LockFile(iniPath);
                 MessageBox.Show(
                     "アクセスが拒否されました。\n書き込み権限のある場所に移動するか、管理者権限で実行してください。",
                     "アクセス拒否",
@@ -669,6 +738,146 @@ namespace AtsInEditer
                 );
             }
         }
+
+        /// <summary>
+        /// 「名前を付けて保存」: 保存先を選んで、今の画面の値で保存します。
+        /// 開いているファイルがあれば、その中身(コメントなど)を引き継いで別の名前で保存します。
+        /// 保存したあとは、新しいファイルを開いている状態になります。
+        /// </summary>
+        private void 名前を付けて保存_Click(object? sender, EventArgs e)
+        {
+            ActionLogger.Log("名前を付けて保存を開始");
+            using SaveFileDialog sfd = new SaveFileDialog
+            {
+                Filter = isEnglish ? "INI Files (*.ini)|*.ini|All Files (*.*)|*.*" : "INI ファイル (*.ini)|*.ini|すべてのファイル (*.*)|*.*",
+                Title = isEnglish ? "Save As" : "名前を付けて保存",
+                DefaultExt = "ini",
+                FileName = string.IsNullOrEmpty(iniPath) ? "ATS.ini" : Path.GetFileName(iniPath),
+            };
+            if (!string.IsNullOrEmpty(iniPath))
+            {
+                sfd.InitialDirectory = Path.GetDirectoryName(iniPath);
+            }
+            if (sfd.ShowDialog() != DialogResult.OK) return;
+
+            // 保存前のチェック(範囲外・MaxBrake 0・号線)
+            if (!ValidateBeforeSave()) return;
+
+            string oldPath = iniPath;
+            try
+            {
+                // 開いているファイルがあればその中身を元にする。なければ空から作る
+                IniFile ini = (!string.IsNullOrEmpty(oldPath) && File.Exists(oldPath))
+                    ? IniFile.Load(oldPath)
+                    : IniFile.CreateNew(sfd.FileName);
+                WriteValuesToIni(ini);
+
+                UnlockFile(); // 同じファイルを選んだときでも書き込めるように
+                ini.SaveAs(sfd.FileName);
+
+                // 新しいファイルを「開いている状態」にする
+                iniPath = sfd.FileName;
+                txtFilePath.Text = iniPath;
+                LockFile(iniPath);
+                isModified = false;
+                ActionLogger.Log($"名前を付けて保存しました: {iniPath}");
+
+                string successMsg = isEnglish ? "Saved successfully!" : "保存が完了しました！";
+                MessageBox.Show(successMsg, isEnglish ? "Success" : "完了", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                ActionLogger.Log($"名前を付けて保存に失敗: {ex.Message}");
+                // 前のファイルのロックを元に戻す
+                if (!string.IsNullOrEmpty(oldPath) && File.Exists(oldPath) && fileLockStream == null) LockFile(oldPath);
+                MessageBox.Show(
+                    (isEnglish ? "Could not save the file:\n" : "保存できませんでした:\n") + ex.Message,
+                    isEnglish ? "Save Error" : "保存エラー", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// 画面(両方のタブ)の値を、INI に書き込みます(ファイルへの保存は呼び出し側)。
+        /// </summary>
+        private void WriteValuesToIni(IniFile ini)
+        {
+            // [VehicleSpec]
+            ini.Set("VehicleSpec", "MaxBrake", numMaxBrake.Value.ToString());
+            if (cmbAtcType.SelectedIndex >= 0)
+            {
+                ini.Set("VehicleSpec", "AtcType", cmbAtcType.SelectedIndex.ToString());
+            }
+            else if (FindDefault("VehicleSpec", "AtcType") is string atcDefault)
+            {
+                // 念のため: ATCタイプが選ばれていないときは一覧表の既定値を書く
+                ini.Set("VehicleSpec", "AtcType", atcDefault);
+            }
+
+            // 数値を最終確認（1.0超は1.0、0.0000001未満は0）
+            decimal finalFailParam = NormalizeFailParameter(numFailParameter.Value);
+            numFailParameter.Value = finalFailParam;
+
+            // [LineSpec]
+            ini.Set("LineSpec", "DefaultLine", numDefaultLine.Value.ToString());
+            ini.Set("LineSpec", "MinLine", numMinLine.Value.ToString());
+            ini.Set("LineSpec", "MaxLine", numMaxLine.Value.ToString());
+            // [ATC] 浮動小数の表記揺れを防ぐため不変カルチャで出力
+            ini.Set("ATC", "ATCFail", chkAtcFail.Checked ? "true" : "false");
+            ini.Set("ATC", "FailParameter", finalFailParam.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+            // ★ 「その他の設定」タブの値
+            SaveOtherFields(ini);
+        }
+
+        /// <summary>
+        /// 保存前のチェック。保存してよければ true。
+        /// (「その他の設定」の範囲外 / MaxBrake が 0 / 号線の大小関係)
+        /// </summary>
+        private bool ValidateBeforeSave()
+        {
+            // ★ 「その他の設定」の値が min～max の範囲外なら注意を出す(「いいえ」なら保存しない)
+            if (!ConfirmOtherRanges())
+            {
+                return false;
+            }
+
+            // MaxBrake 0 チェック
+            if (numMaxBrake.Value == 0)
+            {
+                string warningMessage = isEnglish
+                    ? "MaxBrake is set to 0. Saving may cause ATS brakes to not function correctly. Do you want to continue?"
+                    : "MaxBrakeが0に設定されています。保存するとATSブレーキが正しく動作しない可能性があります。続けますか？";
+                string warningTitle = isEnglish ? "Warning" : "警告";
+                DialogResult result = MessageBox.Show(warningMessage, warningTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+                if (result == DialogResult.No)
+                {
+                    return false;
+                }
+            }
+
+            // MinLine が MaxLine を超えている場合のエラー
+            if (numMinLine.Value > numMaxLine.Value)
+            {
+                string msg = isEnglish
+                    ? "MinLine cannot be greater than MaxLine."
+                    : "最小号線 (MinLine) は最大号線 (MaxLine) 以下の値にしてください。";
+                MessageBox.Show(msg, isEnglish ? "Input Error" : "入力エラー", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            // DefaultLine が範囲外の場合のエラー
+            if (numDefaultLine.Value < numMinLine.Value || numDefaultLine.Value > numMaxLine.Value)
+            {
+                string msg = isEnglish
+                    ? "DefaultLine must be between MinLine and MaxLine."
+                    : "初期号線 (DefaultLine) は 最小号線〜最大号線 の範囲内で設定してください。";
+                MessageBox.Show(msg, isEnglish ? "Input Error" : "入力エラー", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            return true;
+        }
         private void 終了ToolStripMenuItem1_Click(object sender, EventArgs e)
         {
             ActionLogger.Log("終了メニューがクリックされました");
@@ -688,7 +897,9 @@ namespace AtsInEditer
         private void 開くToolStripMenuItem_Click_1(object sender, EventArgs e)
         {
             ActionLogger.Log("ファイルを開くをクリック");
-            btnSelectFile.PerformClick(); // 既存のファイル選択ボタンの処理を呼び出す
+            // 既存のファイル選択ボタンの処理を直接呼び出す
+            // (PerformClick だと、ボタンが見えないタブを表示中のときに何も起きないため)
+            button1_Click(sender, e);
         }
 
         private void 日本語ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -696,6 +907,7 @@ namespace AtsInEditer
             ActionLogger.Log("言語を Japanese に切り替え");
             isEnglish = false;
             UpdateLanguage();
+            AppSettings.SaveIsEnglish(isEnglish); // ★ 次に起動したときもこの言語にする
         }
 
         private void 英語ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -703,6 +915,7 @@ namespace AtsInEditer
             ActionLogger.Log("言語を English に切り替え");
             isEnglish = true;
             UpdateLanguage();
+            AppSettings.SaveIsEnglish(isEnglish); // ★ 次に起動したときもこの言語にする
         }
         private bool isEnglish = false; // デフォルトは日本語
         private void UpdateLanguage()
@@ -712,7 +925,7 @@ namespace AtsInEditer
             if (isEnglish)
             {
                 // 英語に切り替え
-                this.Text = "ATS Plugin INI Editor";
+                appTitle = "ATS Plugin INI Editor";
                 btnSelectFile.Text = "Select INI File";
                 label1.Text = "ATC Type:";
                 label2.Text = "Max Brake:";
@@ -720,6 +933,7 @@ namespace AtsInEditer
                 label4.Text = "Set vehicle parameters in the [Vehicle] section.";
                 ファイルToolStripMenuItem.Text = "File(&F)";
                 保存ToolStripMenuItem.Text = "Save(&S)";
+                名前を付けて保存ToolStripMenuItem.Text = "Save As(&A)";
                 開くToolStripMenuItem.Text = "Open(&O)";
                 新規作成ToolStripMenuItem.Text = "New(&N)";
                 終了ToolStripMenuItem1.Text = "Exit(&X)";
@@ -728,25 +942,31 @@ namespace AtsInEditer
                 英語ToolStripMenuItem.Text = "English(&E)";
                 ヘルプToolStripMenuItem.Text = "Help";
                 //CrashButton1.Text = "Test Crash"; //ユーザーが意図せずにクラッシュするの防ぐため、リリース版では削除してください
-                grpLineSpec.Text = "line settings";
+                grpLineSpec.Text = "Line [LineSpec]";
+                grpVehicle.Text = "Vehicle [VehicleSpec]"; // 枠の幅に収まるよう短めに
                 label5.Text = "Default Line";
                 label6.Text = "Min Line";
                 label7.Text = "Max Line";
                 grpAtc.Text = "ATC Settings [ATC]";
                 chkAtcFail.Text = "Enable ATC Failure (ATCFail)";
                 lblFailParameter.Text = "Failure Probability (FailParameter):";
+                tabBasic.Text = "Basic Settings";
+                tabOther.Text = "Other Settings";
+                btnCollapseAll.Text = "Collapse All";
+                btnExpandAll.Text = "Expand All";
             }
             else
             {
                 // 日本語に切り替え
-                this.Text = "ATSプラグイン用INIエディタ";
+                appTitle = "ATSプラグイン用INIエディタ";
                 btnSelectFile.Text = "INIファイルを選択";
                 label1.Text = "ATCタイプ:";
                 label2.Text = "最大ブレーキ:";
                 label3.Text = "現在、ベータ版バージョンです。不具合が出る可能性があります。注意して使用してください。";
                 label4.Text = "[Vehicle]セクション　車両パラメーターを設定します。";
                 ファイルToolStripMenuItem.Text = "ファイル(&F)";
-                保存ToolStripMenuItem.Text = "保存(&S)";
+                保存ToolStripMenuItem.Text = "上書き保存(&S)";
+                名前を付けて保存ToolStripMenuItem.Text = "名前を付けて保存(&A)";
                 開くToolStripMenuItem.Text = "開く(&O)";
                 新規作成ToolStripMenuItem.Text = "新規作成(&N)";
                 終了ToolStripMenuItem1.Text = "終了(&X)";
@@ -756,14 +976,188 @@ namespace AtsInEditer
                 ヘルプToolStripMenuItem.Text = "ヘルプ";
                 //CrashButton1.Text = "クラッシュテスト"; //ユーザーが意図せずにクラッシュするの防ぐため、リリース版では削除してください
                 grpLineSpec.Text = "[LineSpec]号線設定";
+                grpVehicle.Text = "[VehicleSpec] 車両設定";
                 label5.Text = "初期号線";
                 label6.Text = "最小号線";
                 label7.Text = "最大号線";
                 grpAtc.Text = "ATC設定 [ATC]";
                 chkAtcFail.Text = "ATC故障を有効化 (ATCFail)";
                 lblFailParameter.Text = "故障確率 (FailParameter):";
+                tabBasic.Text = "基本設定";
+                tabOther.Text = "その他の設定";
+                btnCollapseAll.Text = "すべて折り畳む";
+                btnExpandAll.Text = "すべて展開";
             }
             UpdateToolTips(); // ツールチップの内容も更新
+            UpdateAtcTypeItems(); // ATCタイプの選択肢の名前も言語に合わせる
+            UpdateOtherTabLanguage(); // 「その他の設定」の説明文・ツールチップも言語に合わせる
+            UpdateLineNames(); // 号線の路線名も言語に合わせる
+            UpdateTitle(); // タイトルバー(ファイル名・* ・アプリ名)
+            ArrangeFailParameter(); // 言語でラベルの長さが変わるので、数字の欄の位置を合わせる
+        }
+
+        /// <summary>
+        /// ウィンドウの大きさを変えられるようにします(端をドラッグ・最大化)。
+        /// ・今の大きさより小さくはできない(「基本設定」の部品が切れないように)
+        /// ・ファイルの場所の欄は横に伸び、「INIファイルを選択」ボタンは右端についていく
+        /// ・「その他の設定」の表は、広げたぶんだけ多く見える(タブいっぱいに広がる)
+        /// </summary>
+        private void SetupResizable()
+        {
+            this.MinimumSize = this.Size;
+            txtFilePath.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            btnSelectFile.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        }
+
+        // ===== ウィンドウの位置と大きさを覚える =====
+
+        /// <summary>
+        /// 前回閉じたときの位置と大きさに戻します。
+        /// ・覚えていないとき(初めての起動)は、今までどおりの位置と大きさ
+        /// ・その位置がどの画面にも見えないとき(モニターを外したなど)も、今までどおり
+        /// ・最大化して閉じたときは、最大化して開く
+        /// </summary>
+        private void RestoreWindowBounds()
+        {
+            IniFile settings = AppSettings.Load();
+            int? x = AppSettings.GetInt(settings, "Left");
+            int? y = AppSettings.GetInt(settings, "Top");
+            int? w = AppSettings.GetInt(settings, "Width");
+            int? h = AppSettings.GetInt(settings, "Height");
+            if (x == null || y == null || w == null || h == null) return;
+
+            var rect = new Rectangle(x.Value, y.Value,
+                Math.Max(w.Value, MinimumSize.Width), Math.Max(h.Value, MinimumSize.Height));
+
+            // タイトルバーのあたりが、どれかの画面に見えているか
+            var titleArea = new Rectangle(rect.Left, rect.Top, rect.Width, LogicalToDeviceUnits(30));
+            if (!Screen.AllScreens.Any(sc => sc.WorkingArea.IntersectsWith(titleArea)))
+            {
+                ActionLogger.Log("前回のウィンドウ位置が画面の外なので、使いません");
+                return;
+            }
+
+            StartPosition = FormStartPosition.Manual;
+            Bounds = rect;
+            if (AppSettings.GetInt(settings, "Maximized") == 1) WindowState = FormWindowState.Maximized;
+            ActionLogger.Log($"前回のウィンドウ位置・大きさに戻しました: {rect}");
+        }
+
+        /// <summary>
+        /// 閉じるときに、今の位置と大きさを覚えます(最大化中は、元に戻したときの位置と大きさ)。
+        /// </summary>
+        private void SaveWindowBounds()
+        {
+            Rectangle r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+            if (r.Width <= 0 || r.Height <= 0) return; // 最小化のまま閉じたときなど、正しく取れないときは覚えない
+
+            IniFile settings = AppSettings.Load();
+            AppSettings.SetInt(settings, "Left", r.Left);
+            AppSettings.SetInt(settings, "Top", r.Top);
+            AppSettings.SetInt(settings, "Width", r.Width);
+            AppSettings.SetInt(settings, "Height", r.Height);
+            AppSettings.SetInt(settings, "Maximized", WindowState == FormWindowState.Maximized ? 1 : 0);
+            AppSettings.Save(settings);
+            ActionLogger.Log($"ウィンドウ位置・大きさを保存: {r} 最大化={WindowState == FormWindowState.Maximized}");
+        }
+
+        // ===== 号線の路線名 =====
+
+        // 号線の番号(1～9)ごとの路線名 [日本語, 英語]。※ は注意書きがあるもの(ツールチップに出す)
+        private static readonly string[][] lineNames =
+        {
+            new[] { "御堂筋線", "Midosuji Line" },
+            new[] { "谷町線", "Tanimachi Line" },
+            new[] { "四つ橋線", "Yotsubashi Line" },
+            new[] { "中央線 ※", "Chuo Line *" },
+            new[] { "千日前線", "Sennichimae Line" },
+            new[] { "堺筋線 ※", "Sakaisuji Line *" },
+            new[] { "長堀鶴見緑地線", "Nagahori Tsurumi-ryokuchi Line" },
+            new[] { "今里筋線", "Imazatosuji Line" },
+            new[] { "北大阪急行", "Kita-Osaka Kyuko Line" },
+        };
+
+        // 号線の番号ごとの注意書き [日本語, 英語](ないものは空)
+        private static string[] GetLineNote(int line)
+        {
+            return line switch
+            {
+                4 => new[] { "近鉄モードは中央線のみです。", "Kintetsu mode is available only on the Chuo Line." },
+                6 => new[] { "阪急ATSと互換性がありません。", "Not compatible with the Hankyu ATS." },
+                _ => new[] { "", "" },
+            };
+        }
+
+        // 号線の3つの欄の横に出す路線名のラベル
+        private readonly Label lblDefaultLineName = new Label();
+        private readonly Label lblMinLineName = new Label();
+        private readonly Label lblMaxLineName = new Label();
+
+        /// <summary>
+        /// 号線の3つの欄の右に、路線名のラベルを置きます。欄の数字が変わると路線名も変わります。
+        /// </summary>
+        private void SetupLineNameLabels()
+        {
+            foreach (var (num, lbl) in LinePairs())
+            {
+                lbl.AutoSize = true;
+                lbl.ForeColor = Color.DimGray;
+                grpLineSpec.Controls.Add(lbl);
+                num.ValueChanged += (s, e) => UpdateLineNames();
+                num.ValueChanged += (s, e) => MarkAsModified(); // 号線を変えたら「未保存の変更あり」(前は印が付かなかった)
+            }
+            UpdateLineNames();
+        }
+
+        private IEnumerable<(NumericUpDown, Label)> LinePairs()
+        {
+            yield return (numDefaultLine, lblDefaultLineName);
+            yield return (numMinLine, lblMinLineName);
+            yield return (numMaxLine, lblMaxLineName);
+        }
+
+        /// <summary>
+        /// 欄の数字に合わせて路線名を表示し、入りきらないときは枠を広げます。
+        /// </summary>
+        private void UpdateLineNames()
+        {
+            int lang = isEnglish ? 1 : 0;
+            int needWidth = 0;
+            foreach (var (num, lbl) in LinePairs())
+            {
+                int line = (int)num.Value;
+                lbl.Text = (line >= 1 && line <= lineNames.Length) ? lineNames[line - 1][lang] : "";
+                lbl.Left = num.Right + LogicalToDeviceUnits(6);
+                lbl.Top = num.Top + (num.Height - lbl.Height) / 2;
+
+                string note = GetLineNote(line)[lang];
+                toolTip1.SetToolTip(lbl, note == "" ? lbl.Text : $"{lbl.Text.TrimEnd(' ', '※', '*')}\n{note}");
+
+                needWidth = Math.Max(needWidth, lbl.Right + LogicalToDeviceUnits(10));
+            }
+
+            // 路線名が入りきらないときは、左の2つの枠をそろえて広げ、ATC故障の枠を右へずらす
+            if (grpLineSpec.Width < needWidth)
+            {
+                grpLineSpec.Width = needWidth;
+                grpVehicle.Width = needWidth;
+                grpAtc.Left = grpLineSpec.Right + LogicalToDeviceUnits(6);
+            }
+        }
+
+        /// <summary>
+        /// ATC故障の「確率」の数字の欄を、ラベルのすぐ右に置きます(ラベルの長さは言語で変わるため)。
+        /// 枠からはみ出すときは、枠を右へ広げます。
+        /// </summary>
+        private void ArrangeFailParameter()
+        {
+            int gap = LogicalToDeviceUnits(6);
+            numFailParameter.Left = lblFailParameter.Right + gap;
+            // 数字の欄の縦の中心を、ラベルの縦の中心にそろえる
+            numFailParameter.Top = lblFailParameter.Top + (lblFailParameter.Height - numFailParameter.Height) / 2;
+
+            int needWidth = numFailParameter.Right + LogicalToDeviceUnits(10);
+            if (grpAtc.Width < needWidth) grpAtc.Width = needWidth;
         }
 
         private void toolTip1_Popup(object sender, PopupEventArgs e)
@@ -842,7 +1236,8 @@ namespace AtsInEditer
 
         private void numFailParameter_ValueChanged(object sender, EventArgs e)
         {
-
+            // 故障確率を変えたら「未保存の変更あり」(前は印が付かなかった)
+            MarkAsModified();
         }
     }
 }

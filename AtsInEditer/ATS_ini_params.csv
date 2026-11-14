@@ -1,0 +1,95 @@
+﻿group,section,key,type,default,min,max,unit,choices,repeat,description_en,description
+車両,VehicleSpec,MaxBrake,int,6,1,64,段,,,Maximum brake notch (excluding emergency),ブレーキの最大段数(非常を除く)
+車両,VehicleSpec,AtcType,enum,2,,,,0=WS-ATCのみ|1=CS-ATCのみ|2=両方,,ATC types the train has,車両が積んでいるATCの種類
+車両,VehicleSpec,TascEnable,bool,true,,,,,,Whether the train can use TASC,TASCを使える車両か
+車両,VehicleSpec,AtoEnable,bool,true,,,,,,Whether the train can use ATO,ATOを使える車両か
+号線,LineSpec,MinLine,int,1,1,9,,,,Lowest selectable line number,選べる号線の最小
+号線,LineSpec,MaxLine,int,9,1,9,,,,Highest selectable line number,選べる号線の最大
+号線,LineSpec,DefaultLine,int,1,1,9,,,,Line number at start (between MinLine and MaxLine),開始時の号線(MinLine〜MaxLineの範囲)
+ATC,AtcSpec,YardLimitSpeed,int,25,1,120,km/h,,,Speed limit in yard mode,構内モードの制限速度
+ATC,ATC,ATCFail,bool,false,,,,,,Whether ATC failures can occur,ATC故障を起こすか
+ATC,ATC,FailParameter,float,0,0.000000001,1,,,,ATC failure likelihood (0 to 1; 0 = never),ATC故障の起きやすさ(0〜1。0で起きない)
+TASC,TASC,ExtendedNotches,int,0,0,64,段,,,Number of extended TASC brake notches (0 = not used). Must not exceed the number of PressureRates,TASCの拡張ブレーキノッチ数(0で使わない)。PressureRatesの数以下にする
+TASC,TASC,PressureRates,list,,,,,,,Brake strength for each extended notch (comma separated list; at least ExtendedNotches values),拡張ノッチごとのブレーキの強さ(カンマ区切り。ExtendedNotches個以上)
+TASC,TASC,DefaultClearance,float,0.5,0.01,10,m,,,Default stopping tolerance (when there is no 1031 beacon),停車許容範囲の既定値(地上子1031がないとき)
+TASC,TASC,Deceleration,float,2.5,0.5,5,km/h/s,,,TASC target deceleration,TASCの目標減速度
+TASC,TASC,DelayTime,float,1.0,0,5,秒,,,Brake delay (idle running) time,空走時間
+TASC,TASC,NotchStepInterval,int,100,10,1000,ms,,,Interval for changing the notch one step at a time,ノッチを1段ずつ変える間隔
+TASC,TASC,DeadBand,float,1.0,0,5,km/h,,,Margin for keeping the current notch when slower than the pattern,パターンより遅いとき、今のノッチを保つ幅
+TASC,TASC,FinalApproachDist,float,5.0,1,30,m,,,Length of the final approach section,最終接近区間の距離
+TASC,TASC,FinalMinNotchRatio,float,0.25,0,1,,,,Minimum notch ratio kept in the final approach section,最終接近区間で下げない最小ノッチの割合
+TASC,TASC,ReleaseNotchRatio,float,0.2,0,1,,,,Notch ratio to ease off at very low speed just before stopping,停車直前の微低速域で弱めるノッチの割合
+TASC,TASC,InchingMaxDist,float,10.0,0.5,100,m,,,Maximum position error for which inching can be used,インチングを使えるずれの上限
+TASC,TASC,InchingSpeed,float,2.0,0.5,10,km/h,,,Maximum speed when inching,インチングで動かす速度の上限
+TASC,TASC,InchingPowerNotch,int,1,1,10,段,,,Power notch used for inching,インチングの力行ノッチ
+TASC,TASC,InchingBrakeNotch,int,2,1,10,段,,,Brake notch used to stop when inching,インチングで止めるときのブレーキノッチ
+TASC,TASC,InchingLeadTime,float,0.8,0,5,秒,,,Time margin before stopping when inching,インチングで止まるまでの余裕時間
+TASC,TASC,HoldBrakeRatio,float,1.0,0.1,1,,,,Holding brake strength while stopped (ratio to the maximum notch),停車中の転動防止ブレーキの強さ(最大ノッチに対する割合)
+TASC,TASC,HoldReleaseOnDoorOpen,bool,false,,,,,,Release the holding brake when the doors open,ドアが開いたら転動防止ブレーキを緩める
+TASC,TASC,HoldReleaseOnDoorClose,bool,false,,,,,,Release the holding brake when the doors close,ドアが閉まったら転動防止ブレーキを緩める
+TASC,TASC,HoldReleaseDelay,float,0.0,0,30,秒,,,Time from the driver operating the brake until the holding brake is released,運転士がブレーキを操作してから転動防止ブレーキを緩めるまでの時間
+TASC,TASC,Failure,bool,false,,,,,,Whether TASC failures can occur,TASC故障を起こすか
+TASC,TASC,FailureRate,float,0.0,0.0000001,1,,,,TASC failure likelihood (0 to 1; 0 = never),TASC故障の起きやすさ(0〜1。0で起きない)
+ATO,ATO,PowerNotch,int,3,1,64,段,,,Power notch ATO uses on level track,ATOが平坦で使う力行ノッチ
+ATO,ATO,ExtendedPowerNotches,int,0,0,64,段,,,Number of extended power notches (0 = not used; 31 means P1 to P31),力行の拡張ノッチ数(0で使わない。31ならP1〜P31)
+ATO,ATO,DriverPowerMap,list,,,,,,,Table converting the driver's P1 / P2 / ... to ATO notches (comma separated list such as 1 3 5 7). Values must not exceed ExtendedPowerNotches,運転士のP1・P2…をATOのノッチに変換する表(カンマ区切り。例: 1,3,5,7)
+ATO,ATO,PowerNotchReturn,bool,true,,,,,,Whether the train supports notching back (false: never lowers the notch while powering and returns to N instead),戻しノッチに対応している車両か(falseなら力行中はノッチを下げず、下げるときはNまで戻す)
+ATO,ATO,AutoStartAfterJump,bool,true,,,,,,Start automatically when the doors close after a station jump or scenario start,駅ジャンプ・シナリオ開始のあと、ドアが閉まったら自動発進する
+ATO,ATO,CutMargin,float,5.0,0,30,km/h,,,Cut power this many km/h below the allowed speed,許容速度の何km/h手前で力行を切るか
+ATO,ATO,ResumeMargin,float,8.0,0,40,km/h,,,Resume power when the speed drops this many km/h below the allowed speed,許容速度の何km/h手前まで下がったら力行を再開するか
+ATO,ATO,BrakeMargin,float,3.0,0,20,km/h,,,Apply the brake when the speed comes within this many km/h of the allowed speed,許容速度の何km/h手前を超えたらブレーキを掛けるか
+ATO,ATO,Deceleration,float,2.0,0.3,5,km/h/s,,,Deceleration of the braking pattern,減速パターンの減速度
+ATO,ATO,StopMargin,float,10.0,0,100,m,,,Stop this many meters before a stop signal,停止信号の何m手前で止まるか
+ATO,ATO,GradeLookahead,float,100.0,10,1000,m,,,Distance to look ahead for gradients,こう配を先読みする距離
+ATO,ATO,CoastLookaheadSec,float,5.0,0,30,秒,,,Time to look ahead for the speed change when coasting,惰行したときの速度変化を先読みする時間
+ATO,ATO,UphillNotchBonusMax,int,2,0,5,段,,,Maximum extra power notches on uphill grades (1 step per 10 per mille),のぼりで力行ノッチを上げる最大段数(10‰ごとに1段)
+ATO,ATO,Failure,bool,false,,,,,,Whether ATO failures can occur,ATO故障を起こすか
+ATO,ATO,FailureRate,float,0.0,0.0000001,1,,,,ATO failure likelihood (0 to 1; 0 = never),ATO故障の起きやすさ(0〜1。0で起きない)
+ホームドア,PlatformDoor,Enable,bool,true,,,,,,Whether the train supports platform door linking (false = lamp always off),車両がホームドア連動に対応しているか(falseで常に消灯)
+ホームドア,PlatformDoor,DefaultStation,bool,false,,,,,,Whether there are platform doors after a scenario start or station jump until beacon 1040 is received,シナリオ開始・駅ジャンプのあと、地上子1040を受けるまでのホームドアの有無
+ホームドア,PlatformDoor,PanelOpen,int,40,0,255,パネル,,,Panel index of the platform door open lamp,可動柵開ランプのパネル番号
+ホームドア,PlatformDoor,OpenDelay,float,0,0,30,秒,,,Time from the train doors opening until the platform doors start to open,車両のドアが開いてから、ホームドアが開き始めるまで
+ホームドア,PlatformDoor,OpenTime,float,3,0,30,秒,,,Time for the platform doors to finish opening,ホームドアが開き終わるまで
+ホームドア,PlatformDoor,CloseDelay,float,1,0,30,秒,,,Time from the train doors closing until the platform doors start to close,車両のドアが閉まってから、ホームドアが閉まり始めるまで
+ホームドア,PlatformDoor,CloseTime,float,3,0,30,秒,,,Time for the platform doors to finish closing,ホームドアが閉まり終わるまで
+ホームドア,PlatformDoor,SoundOpen,int,-1,-1,255,サウンド,,,Sound index played when opening starts (-1 = none; 0 to 2 are already used),開き始めるときの音のサウンド番号(-1で鳴らさない。0〜2は使用済み)
+ホームドア,PlatformDoor,SoundClose,int,-1,-1,255,サウンド,,,Sound index played when closing starts (-1 = none),閉まり始めるときの音のサウンド番号(-1で鳴らさない)
+ホームドア,PlatformDoor,PanelState,int,-1,-1,255,パネル,,,Panel index of the platform door state (-1 = not used; 0 closed / 1 opening / 2 open / 3 closing),ホームドアの状態のパネル番号(-1で使わない。0:閉 1:開いている途中 2:開 3:閉まっている途中)
+駅表示,StationDisplay,Enable,bool,true,,,,,,Show the current station / next station / kilometer post,現在駅・次駅・キロ程を表示するか
+駅表示,StationDisplay,StationPanelStart,int,200,0,216,パネル,,,First panel index of the station display (uses 40 panels from here),駅表示の最初のパネル番号(ここから40個使う)
+駅表示,StationDisplay,KiloPanelStart,int,240,0,252,パネル,,,First panel index of the kilometer post display (uses 4 panels from here),キロ程の最初のパネル番号(ここから4個使う)
+パネル,PanelTiming,{パネル番号},special,,,,,,,Update interval and delay for each panel. One line each: panel index = interval ms then delay ms separated by a comma (up to 32),パネルごとの更新間隔と反映遅延。書き方: パネル番号 = 更新間隔ms, 反映遅延ms(32個まで)
+計器,Gauge{n},Source,enum,,,,,bc=BC圧|mr=MR圧|er=ER圧|bp=BP圧|sap=SAP圧|current=MM電流|voltage=架線電圧|control=制御電圧,1-8,Value shown on the gauge (if omitted the gauge is not used),計器に出す値(書かなければその計器は使わない)
+計器,Gauge{n},Min,float,0,,,,,1-8,Lower end of the scale,目盛りの下端
+計器,Gauge{n},Max,float,1000,,,,,1-8,Upper end of the scale,目盛りの上端
+計器,Gauge{n},Steps,int,50,1,1000,段,,1-8,Number of bar steps (with 1 px per step this is the scale height in px),バーの段数(1段1pxなら目盛りの高さのpx)
+計器,Gauge{n},Segments,int,1,1,8,枚,,1-8,Number of images the bar is split into vertically,バーを縦に何枚の画像に分けるか
+計器,Gauge{n},MarkerHalf,int,2,0,20,px,,1-8,Half of the marker height,マーカーの高さの半分
+計器,Gauge{n},BarPanel,int,-1,-1,255,パネル,,1-8,First panel index of the bar (-1 = not used; uses Segments panels from here),バーの最初のパネル番号(-1で使わない。ここからSegments個)
+計器,Gauge{n},DigitPanel,int,-1,-1,255,パネル,,1-8,Panel index of the most significant digit (-1 = not used; uses Digits panels from here),数字の最上位の桁のパネル番号(-1で使わない。ここからDigits個)
+計器,Gauge{n},Digits,int,3,1,5,桁,,1-8,Number of digits,数字の桁数
+架線電圧,LineVoltage,Nominal,float,750,0,2000,V,,,Voltage at zero current,電流0のときの電圧
+架線電圧,LineVoltage,DropPerAmp,float,0.05,0,10,V/A,,,Voltage drop per 1 A of power current,力行電流1Aあたりの電圧降下
+架線電圧,LineVoltage,RisePerAmp,float,0.03,0,10,V/A,,,Voltage rise per 1 A of regenerative current,回生電流1Aあたりの電圧上昇
+架線電圧,LineVoltage,Min,float,650,0,2000,V,,,Lower limit of the displayed voltage,表示する電圧の下限
+架線電圧,LineVoltage,Max,float,800,0,2000,V,,,Upper limit of the displayed voltage,表示する電圧の上限
+架線電圧,LineVoltage,Fluctuation,float,10,0,100,V,,,Size of the fluctuation including while stopped (plus or minus; 0 = none),停車中も含めたゆらぎの大きさ(±。0でゆらがない)
+架線電圧,LineVoltage,FluctuationPeriod,float,3.0,0.1,60,秒,,,Average time until the next fluctuation target is chosen,次のゆらぎの目標値を選ぶまでの平均の時間
+架線電圧,LineVoltage,SubstationRise,float,30,0,200,V,,,Voltage rise right next to a substation (beacon 1045),変電所の真横での電圧の上がり(地上子1045)
+架線電圧,LineVoltage,SubstationRange,float,2000,1,20000,m,,,Distance the substation effect reaches,変電所の効きが届く距離
+制御電圧,ControlVoltage,Nominal,float,100,0,200,V,,,Normal control voltage,ふだんの制御電圧
+制御電圧,ControlVoltage,Min,float,0,0,200,V,,,Lower limit of the displayed voltage,表示する電圧の下限
+制御電圧,ControlVoltage,Max,float,150,0,200,V,,,Upper limit of the displayed voltage,表示する電圧の上限
+制御電圧,ControlVoltage,Fluctuation,float,1.0,0,20,V,,,Size of the fluctuation (plus or minus; 0 = none),ゆらぎの大きさ(±。0でゆらがない)
+制御電圧,ControlVoltage,FluctuationPeriod,float,5.0,0.1,60,秒,,,Average time until the next fluctuation target is chosen,次のゆらぎの目標値を選ぶまでの平均の時間
+停電,Outage,CutRegen,bool,true,,,,,,During a power outage set the reverser to neutral and stop the electric brake (beacon 1046),停電中はレバーサーを中立にして電気ブレーキを止める(地上子1046)
+回生失効,RegenFail,Enable,bool,true,,,,,,Whether regenerative brake failure can occur,回生失効を起こすか
+回生失効,RegenFail,Limit,float,790,0,2000,V,,,Regeneration fails above this (calculated) line voltage,この架線電圧(計算値)を超えたら回生失効
+回生失効,RegenFail,Panel,int,-1,-1,255,パネル,,,Panel index of the regeneration failure lamp (-1 = not used),回生失効の表示灯のパネル番号(-1で使わない)
+母線引き通し,BusLine,Enable,bool,true,,,,,,Use the bus line lamp,母線引き通し表示灯を使うか
+母線引き通し,BusLine,Panel,int,197,0,255,パネル,,,Panel index of the lamp,表示灯のパネル番号
+母線引き通し,BusLine,OnSpeed,float,5,0,120,km/h,,,Light at or above this speed (0 = always lit regardless of speed),この速度以上で点灯(0で速度に関係なく点灯)
+母線引き通し,BusLine,ShoePositions,list,,,,m,,,Positions of the motor car collector shoes as distances from the front (comma separated list; if omitted the front is used),M車の集電靴の位置(先頭からの距離をカンマ区切り。書かなければ先頭で判断)
+速度計,SplitMeter,Panel,int,-1,-1,255,パネル,,,First panel index of the split speedometer (-1 = not used; uses Parts panels from here),分けた速度計の最初のパネル番号(-1で使わない。ここからParts個)
+速度計,SplitMeter,Parts,int,3,1,16,枚,,,Number of images (the value shown by SplitStrip.ps1),画像の枚数(SplitStrip.ps1が表示する値)
+速度計,SplitMeter,PerPart,int,82,1,1000,,,,Number of values each image covers (the value shown by SplitStrip.ps1),1枚が受け持つ値の数(SplitStrip.ps1が表示する値)

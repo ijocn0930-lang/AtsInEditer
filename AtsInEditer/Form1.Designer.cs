@@ -63,6 +63,7 @@
             lblFailParameter = new Label();
             numFailParameter = new NumericUpDown();
             chkAtcFail = new CheckBox();
+            grpVehicle = new GroupBox();
             ((System.ComponentModel.ISupportInitialize)numMaxBrake).BeginInit();
             menuStrip1.SuspendLayout();
             grpLineSpec.SuspendLayout();
@@ -71,6 +72,7 @@
             ((System.ComponentModel.ISupportInitialize)numDefaultLine).BeginInit();
             grpAtc.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)numFailParameter).BeginInit();
+            grpVehicle.SuspendLayout();
             SuspendLayout();
             // 
             // btnSelectFile
@@ -95,7 +97,7 @@
             // 
             // numMaxBrake
             // 
-            numMaxBrake.Location = new Point(118, 85);
+            numMaxBrake.Location = new Point(106, 22);
             numMaxBrake.Name = "numMaxBrake";
             numMaxBrake.Size = new Size(45, 23);
             numMaxBrake.TabIndex = 4;
@@ -103,11 +105,12 @@
             // 
             // cmbAtcType
             // 
+            cmbAtcType.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbAtcType.FormattingEnabled = true;
             cmbAtcType.Items.AddRange(new object[] { "0", "1", "2" });
-            cmbAtcType.Location = new Point(118, 108);
+            cmbAtcType.Location = new Point(106, 51);
             cmbAtcType.Name = "cmbAtcType";
-            cmbAtcType.Size = new Size(45, 23);
+            cmbAtcType.Size = new Size(120, 23);
             cmbAtcType.TabIndex = 5;
             cmbAtcType.SelectedIndexChanged += cmbAtcType_SelectedIndexChanged;
             // 
@@ -115,7 +118,7 @@
             // 
             label1.AutoSize = true;
             label1.ImeMode = ImeMode.NoControl;
-            label1.Location = new Point(37, 111);
+            label1.Location = new Point(22, 54);
             label1.Name = "label1";
             label1.Size = new Size(62, 15);
             label1.TabIndex = 6;
@@ -126,7 +129,7 @@
             // 
             label2.AutoSize = true;
             label2.ImeMode = ImeMode.NoControl;
-            label2.Location = new Point(34, 87);
+            label2.Location = new Point(22, 24);
             label2.Name = "label2";
             label2.Size = new Size(65, 15);
             label2.TabIndex = 7;
@@ -268,9 +271,9 @@
             grpLineSpec.Controls.Add(numMaxLine);
             grpLineSpec.Controls.Add(numMinLine);
             grpLineSpec.Controls.Add(numDefaultLine);
-            grpLineSpec.Location = new Point(12, 137);
+            grpLineSpec.Location = new Point(12, 172);
             grpLineSpec.Name = "grpLineSpec";
-            grpLineSpec.Size = new Size(171, 160);
+            grpLineSpec.Size = new Size(240, 115);
             grpLineSpec.TabIndex = 14;
             grpLineSpec.TabStop = false;
             grpLineSpec.Text = "[LineSpec] 路線設定";
@@ -307,17 +310,17 @@
             // numMaxLine
             // 
             numMaxLine.Location = new Point(114, 80);
-            numMaxLine.Maximum = new decimal(new int[] { 8, 0, 0, 0 });
+            numMaxLine.Maximum = new decimal(new int[] { 9, 0, 0, 0 });
             numMaxLine.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             numMaxLine.Name = "numMaxLine";
             numMaxLine.Size = new Size(37, 23);
             numMaxLine.TabIndex = 17;
-            numMaxLine.Value = new decimal(new int[] { 8, 0, 0, 0 });
+            numMaxLine.Value = new decimal(new int[] { 9, 0, 0, 0 });
             // 
             // numMinLine
             // 
             numMinLine.Location = new Point(114, 51);
-            numMinLine.Maximum = new decimal(new int[] { 8, 0, 0, 0 });
+            numMinLine.Maximum = new decimal(new int[] { 9, 0, 0, 0 });
             numMinLine.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             numMinLine.Name = "numMinLine";
             numMinLine.Size = new Size(37, 23);
@@ -327,7 +330,7 @@
             // numDefaultLine
             // 
             numDefaultLine.Location = new Point(114, 22);
-            numDefaultLine.Maximum = new decimal(new int[] { 8, 0, 0, 0 });
+            numDefaultLine.Maximum = new decimal(new int[] { 9, 0, 0, 0 });
             numDefaultLine.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             numDefaultLine.Name = "numDefaultLine";
             numDefaultLine.Size = new Size(37, 23);
@@ -340,7 +343,7 @@
             grpAtc.Controls.Add(lblFailParameter);
             grpAtc.Controls.Add(numFailParameter);
             grpAtc.Controls.Add(chkAtcFail);
-            grpAtc.Location = new Point(189, 87);
+            grpAtc.Location = new Point(258, 80);
             grpAtc.Name = "grpAtc";
             grpAtc.Size = new Size(339, 100);
             grpAtc.TabIndex = 15;
@@ -362,11 +365,11 @@
             numFailParameter.DecimalPlaces = 7;
             numFailParameter.Enabled = false;
             numFailParameter.Increment = new decimal(new int[] { 1, 0, 0, 327680 });
-            numFailParameter.Location = new Point(167, 45);
+            numFailParameter.Location = new Point(212, 45);
             numFailParameter.Maximum = new decimal(new int[] { 1, 0, 0, 0 });
-            numFailParameter.Minimum = new decimal(new int[] { 1, 0, 0, 458752 });
+            numFailParameter.Minimum = new decimal(new int[] { 0, 0, 0, 0 });
             numFailParameter.Name = "numFailParameter";
-            numFailParameter.Size = new Size(91, 23);
+            numFailParameter.Size = new Size(110, 23);
             numFailParameter.TabIndex = 1;
             numFailParameter.Value = new decimal(new int[] { 1, 0, 0, 458752 });
             numFailParameter.ValueChanged += numFailParameter_ValueChanged;
@@ -381,31 +384,41 @@
             chkAtcFail.Text = "ATC故障の有効化";
             chkAtcFail.UseVisualStyleBackColor = true;
             chkAtcFail.CheckedChanged += chkAtcFail_CheckedChanged;
-            // 
+            //
+            // grpVehicle
+            //
+            grpVehicle.Controls.Add(label2);
+            grpVehicle.Controls.Add(numMaxBrake);
+            grpVehicle.Controls.Add(label1);
+            grpVehicle.Controls.Add(cmbAtcType);
+            grpVehicle.Location = new Point(12, 80);
+            grpVehicle.Name = "grpVehicle";
+            grpVehicle.Size = new Size(240, 86);
+            grpVehicle.TabIndex = 13;
+            grpVehicle.TabStop = false;
+            grpVehicle.Text = "[VehicleSpec] 車両設定";
+            //
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(772, 353);
+            Controls.Add(grpVehicle);
             Controls.Add(grpAtc);
             Controls.Add(grpLineSpec);
             Controls.Add(CrashButton1);
             Controls.Add(label4);
             Controls.Add(label3);
-            Controls.Add(label2);
-            Controls.Add(label1);
-            Controls.Add(cmbAtcType);
-            Controls.Add(numMaxBrake);
             Controls.Add(txtFilePath);
             Controls.Add(btnSelectFile);
             Controls.Add(menuStrip1);
-            FormBorderStyle = FormBorderStyle.FixedSingle;
+            FormBorderStyle = FormBorderStyle.Sizable;
             Icon = (Icon)resources.GetObject("$this.Icon");
             KeyPreview = true;
             MainMenuStrip = menuStrip1;
-            MaximizeBox = false;
+            MaximizeBox = true;
             Name = "Form1";
-            Text = "ATSプラグインエディタ V0.0.2";
+            Text = "ATSプラグインエディタ V0.1.0";
             FormClosing += Form1_FormClosing;
             Load += Form1_Load;
             KeyDown += Form1_KeyDown;
@@ -420,6 +433,8 @@
             grpAtc.ResumeLayout(false);
             grpAtc.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)numFailParameter).EndInit();
+            grpVehicle.ResumeLayout(false);
+            grpVehicle.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -430,6 +445,7 @@
         private TextBox txtFilePath;
         private NumericUpDown numMaxBrake;
         private ComboBox cmbAtcType;
+        private GroupBox grpVehicle;
         private Label label1;
         private Label label2;
         private Label label3;

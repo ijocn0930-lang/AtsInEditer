@@ -6,12 +6,12 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <PlatformTarget>x64</PlatformTarget>
-    <FileVersion>0.0.1</FileVersion>
+    <FileVersion>0.1.0</FileVersion>
     <ApplicationIcon>favicon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Nullable>enable</Nullable>
     <Copyright>Copyright © 2026 テツドウ</Copyright>
-    <AssemblyVersion>0.0.1</AssemblyVersion>
+    <AssemblyVersion>0.1.0</AssemblyVersion>
     <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
@@ -33,6 +33,14 @@
 
   <ItemGroup>
     <Content Include="favicon.ico" />
+  </ItemGroup>
+
+  <!-- パラメーター一覧表(プロジェクト内のコピーを、ビルド時にexeと同じ場所へコピーする)
+       元の一覧表(D:\BveTs\...\ATSplugin0\ATS_ini_params.csv)を直したら、このフォルダの ATS_ini_params.csv にも同じ変更をコピーすること -->
+  <ItemGroup>
+    <None Update="ATS_ini_params.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
